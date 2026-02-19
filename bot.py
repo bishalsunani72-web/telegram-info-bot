@@ -3,14 +3,15 @@ import json
 import time
 import os
 
-# ================== CONFIG ==================
+# ================= CONFIG =================
 
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 API_URL = os.getenv("API_URL")
+API_KEY = os.getenv("API_KEY")
 
 BASE_URL = f"https://api.telegram.org/bot{BOT_TOKEN}"
 
-# ================== FUNCTIONS ==================
+# ================= TELEGRAM FUNCTIONS =================
 
 def get_updates(offset=None):
     url = BASE_URL + "/getUpdates"
@@ -24,6 +25,7 @@ def get_updates(offset=None):
 
 def send_message(chat_id, text, reply_markup=None, parse_mode=None):
     url = BASE_URL + "/sendMessage"
+
     data = {
         "chat_id": chat_id,
         "text": text
@@ -37,16 +39,30 @@ def send_message(chat_id, text, reply_markup=None, parse_mode=None):
 
     requests.post(url, data=data)
 
+# ================= PHONE LOOKUP FUNCTION =================
 
 def phone_lookup(number):
     try:
-        response = requests.get(API_URL + number)
-        return response.json()
-    except:
-        return None
+        headers = {
+            "Authorization": "Bearer " + API_KEY,
+            "Content-Type": "application/json"
+        }
 
+        params = {
+            "number": number
+        }
 
-# ================== MAIN LOOP ==================
+        response = requests.get(API_URL, headers=headers, params=params)
+
+        if response.status_code == 200:
+            return response.json()
+        else:
+            return {"error": f"API Error {response.status_code}"}
+
+    except Exception as e:
+        return {"error": str(e)}
+
+# ================= MAIN LOOP =================
 
 def main():
     print("Bot started...")
@@ -67,7 +83,7 @@ def main():
                         if "text" in message:
                             text = message["text"]
 
-                            # ===== START =====
+                            # START
                             if text == "/start":
                                 keyboard = {
                                     "keyboard": [["📱 Phone Lookup"]],
@@ -76,38 +92,29 @@ def main():
 
                                 send_message(
                                     chat_id,
-                                    "👋 Welcome!\n\nSelect an option:",
+                                    "👋 Welcome!\nSelect option:",
                                     reply_markup=keyboard
                                 )
 
-                            # ===== BUTTON =====
+                            # BUTTON
                             elif text == "📱 Phone Lookup":
-                                send_message(
-                                    chat_id,
-                                    "📞 Send 10 digit mobile number:"
-                                )
+                                send_message(chat_id, "📞 Send 10 digit mobile number:")
 
-                            # ===== VALID NUMBER =====
+                            # VALID NUMBER
                             elif text.isdigit() and len(text) == 10:
                                 send_message(chat_id, "🔍 Checking...")
 
-                                api_response = phone_lookup(text)
+                                result = phone_lookup(text)
 
-                                if api_response:
-                                    formatted = "<pre>" + json.dumps(api_response, indent=4) + "</pre>"
+                                formatted = "<pre>" + json.dumps(result, indent=4) + "</pre>"
 
-                                    send_message(
-                                        chat_id,
-                                        formatted,
-                                        parse_mode="HTML"
-                                    )
-                                else:
-                                    send_message(
-                                        chat_id,
-                                        "❌ API error."
-                                    )
+                                send_message(
+                                    chat_id,
+                                    formatted,
+                                    parse_mode="HTML"
+                                )
 
-                            # ===== INVALID =====
+                            # INVALID
                             else:
                                 send_message(
                                     chat_id,
@@ -119,7 +126,6 @@ def main():
         except Exception as e:
             print("Error:", e)
             time.sleep(5)
-
 
 if __name__ == "__main__":
     main()
